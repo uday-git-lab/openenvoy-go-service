@@ -18,11 +18,19 @@ jobs:
         with:
           go-version: '1.21'
 
+      # Bug 1: go fmt ./... was not failing the build and was erroring without a module
+      # Fix: use gofmt in "check" mode and fail when there are unformatted files
       - name: Lint
-        run: go fmt ./...
+        run: |
+          CHANGED=$(gofmt -l .)
+          if [ -n "$CHANGED" ]; then
+            echo "The following files are not gofmt-ed:"
+            echo "$CHANGED"
+            exit 1
+          fi
 
       - name: Test
-        run: go test -v ./... # This will pass as there are no tests.
+        run: go test -v ./...
 
   build:
     name: Build Docker Image
@@ -39,16 +47,19 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
-          push: false # We won't push, just build
-          tags: my-app:latest
+          push: false
+          tags: go-service:latest
 
   deploy:
     name: "Deploy"
     runs-on: ubuntu-latest
     needs: build
+    # Bug: MY_BUCKET_NAME was never defined but set -u was enabled → job always failed
+    env:
+      MY_BUCKET_NAME: demo-artifacts-bucket
     steps:
       - name: "Simulate Deploy"
         run: |
-          set -eu 
+          set -eu
           echo "Deploying to bucket: $MY_BUCKET_NAME"
           echo "Deploy complete."
