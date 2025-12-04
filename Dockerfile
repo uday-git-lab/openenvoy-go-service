@@ -3,19 +3,12 @@
 
     WORKDIR /app
     
-    # Copy module file first for better caching
+    # Copy module file first for caching
     COPY go.mod ./
     COPY . .
     
-    # BUG 1: Original 'go fmt ./...' never failed build on bad formatting.
-    # Fix: fail the build if go fmt had to reformat anything.
-    RUN set -eux; \
-        CHANGED=$(go fmt ./...); \
-        if [ -n "$CHANGED" ]; then \
-          echo "Go source was not properly formatted. Files updated:"; \
-          echo "$CHANGED"; \
-          exit 1; \
-        fi
+    # Enforce formatting: fail if go fmt outputs any files
+    RUN test -z "$(go fmt ./...)"
     
     # Build static binary
     RUN CGO_ENABLED=0 GOOS=linux go build -o /app/server .
@@ -26,8 +19,7 @@
     WORKDIR /root/
     COPY --from=builder /app/server .
     
-    # BUG 2: EXPOSE 8000 but app listens on 8080 -> mismatch.
-    # Fix: expose 8080, same as main.go
+    # App listens on 8080 in main.go
     EXPOSE 8080
     
     CMD ["./server"]    
